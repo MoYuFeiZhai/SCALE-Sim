@@ -316,6 +316,11 @@ class topologies(object):
                 s_row = window_sz
                 s_col = num_ofmap
                 t_time = num_filt
+            elif df == 'neutron':
+                # Default to OS-style spatio-temporal params for Neutron time model compatibility
+                s_row = num_ofmap
+                s_col = num_filt
+                t_time = window_sz
         else:
             self.topo_calc_hyperparams(self.topo_file_name)
         return s_row, s_col, t_time
@@ -329,7 +334,7 @@ class topologies(object):
             self.topo_calc_hyperparams(self.topo_file_name)
         for i  in range(self.num_layers):
             this_layer_params_arr = []
-            for df in ['os', 'ws', 'is']:
+            for df in ['os', 'ws', 'is', 'neutron']:
                 sr, sc, tt = self.calc_spatio_temporal_params(df=df, layer_id=i)
                 this_layer_params_arr.append([sr, sc, tt])
             self.spatio_temp_dim_arrays.append(this_layer_params_arr)
@@ -577,7 +582,7 @@ class topologies(object):
             df = self.df
         if not self.topo_calc_spatiotemp_params_flag:
             self.set_spatio_temporal_params()
-        df_list = ['os', 'ws', 'is']
+        df_list = ['os', 'ws', 'is', 'neutron']
         df_idx = df_list.index(df)
         s_row = self.spatio_temp_dim_arrays[layer_id][df_idx][0]
         s_col = self.spatio_temp_dim_arrays[layer_id][df_idx][1]

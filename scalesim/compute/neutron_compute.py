@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from math import log2
+import numpy as np
 
 
 def smallest_multiple_above(base: int, value: int) -> int:
@@ -286,3 +287,170 @@ class Neutron:
 
         return usage_dict
 
+
+class neutron_compute:
+    """
+    Adapter to use the Neutron matmul model inside the Scale-Sim compute flow.
+    This provides the same interface as systolic_compute_* classes.
+    """
+
+    def __init__(self):
+        self.config = None
+
+        self.ifmap_op_mat = None
+        self.filter_op_mat = None
+        self.ofmap_op_mat = None
+
+        self.ifmap_prefetch_matrix = None
+        self.filter_prefetch_matrix = None
+
+        self.ifmap_demand_matrix = None
+        self.filter_demand_matrix = None
+        self.ofmap_demand_matrix = None
+
+        self.ifmap_reads = 0
+        self.filter_reads = 0
+        self.ofmap_writes = 0
+
+        self.mapping_efficiency_per_fold = []
+        self.compute_utility_per_fold = []
+
+        self.total_cycles = 0
+        self.neutron = None
+
+        self.params_set_flag = False
+        self.prefetch_mat_ready_flag = False
+        self.demand_mat_ready_flag = False
+
+    def set_params(self, config_obj, ifmap_op_mat, filter_op_mat, ofmap_op_mat, **_kwargs):
+        self.config = config_obj
+        self.ifmap_op_mat = ifmap_op_mat
+        self.filter_op_mat = filter_op_mat
+        self.ofmap_op_mat = ofmap_op_mat
+
+        arr_row, arr_col = self.config.get_array_dims()
+        num_accums = arr_row * arr_col
+        self.neutron = Neutron(arr_row, arr_col, num_accums)
+
+        # Matrix multiply dimensions: (Sr x T) * (T x Sc)
+        Sr = int(self.ifmap_op_mat.shape[0])
+        T = int(self.ifmap_op_mat.shape[1])
+        Sc = int(self.filter_op_mat.shape[1])
+
+        usage = self.neutron.matrix_multiply((Sr, T), (T, Sc))
+        self.total_cycles = int(usage["total_clock_cycles"])
+        self.ifmap_reads = int(usage["tcm_data_read_byte"])
+        self.filter_reads = int(usage["tcm_weight_read_byte"])
+        self.ofmap_writes = int(usage["tcm_result_write_byte"])
+
+        total_macs = self.neutron.param_total_number_of_macs
+        if self.total_cycles > 0 and total_macs > 0:
+            util = usage["8x8"] / (self.total_cycles * total_macs)
+        else:
+            util = 0.0
+
+        self.mapping_efficiency_per_fold = [util]
+        self.compute_utility_per_fold = [util]
+
+        self.params_set_flag = True
+
+    def _flatten_unique(self, mat):
+        flat = [int(x) for x in mat.flatten() if int(x) != -1]
+        if not flat:
+            return []
+        seen = set()
+        uniq = []
+        for v in flat:
+            if v not in seen:
+                seen.add(v)
+                uniq.append(v)
+        return uniq
+
+    def _build_demand_matrix(self, address_pool, total_requests, total_cycles):
+        if total_cycles <= 0:
+            return np.ones((1, 1)) * -1
+
+        if total_requests <= 0:
+            return np.ones((total_cycles, 1)) * -1
+
+        bw = max(1, int(math.ceil(total_requests / total_cycles)))
+        demand = np.ones((total_cycles, bw)) * -1
+
+        if not address_pool:
+            address_pool = list(range(max(1, total_requests)))
+
+        for i in range(total_requests):
+            row = i // bw
+            col = i % bw
+            if row >= total_cycles:
+                break
+            demand[row][col] = address_pool[i % len(address_pool)]
+
+        return demand
+
+    def create_prefetch_matrices(self):
+        assert self.params_set_flag, "Parameters are not set"
+
+        ifmap_addrs = self._flatten_unique(self.ifmap_op_mat)
+        filter_addrs = self._flatten_unique(self.filter_op_mat)
+
+        if not ifmap_addrs:
+            self.ifmap_prefetch_matrix = np.ones((1, 1)) * -1
+        else:
+            self.ifmap_prefetch_matrix = np.asarray(ifmap_addrs).reshape((1, len(ifmap_addrs)))
+
+        if not filter_addrs:
+            self.filter_prefetch_matrix = np.ones((1, 1)) * -1
+        else:
+            self.filter_prefetch_matrix = np.asarray(filter_addrs).reshape((1, len(filter_addrs)))
+
+        self.prefetch_mat_ready_flag = True
+
+    def create_demand_matrices(self):
+        assert self.params_set_flag, "Parameters are not set"
+
+        ifmap_pool = self._flatten_unique(self.ifmap_op_mat)
+        filter_pool = self._flatten_unique(self.filter_op_mat)
+        ofmap_pool = self._flatten_unique(self.ofmap_op_mat)
+
+        self.ifmap_demand_matrix = self._build_demand_matrix(
+            ifmap_pool, self.ifmap_reads, self.total_cycles
+        )
+        self.filter_demand_matrix = self._build_demand_matrix(
+            filter_pool, self.filter_reads, self.total_cycles
+        )
+        self.ofmap_demand_matrix = self._build_demand_matrix(
+            ofmap_pool, self.ofmap_writes, self.total_cycles
+        )
+
+        self.demand_mat_ready_flag = True
+
+    def get_prefetch_matrices(self):
+        if not self.prefetch_mat_ready_flag:
+            self.create_prefetch_matrices()
+        return self.ifmap_prefetch_matrix, self.filter_prefetch_matrix
+
+    def get_demand_matrices(self):
+        if not self.demand_mat_ready_flag:
+            self.create_demand_matrices()
+        return self.ifmap_demand_matrix, self.filter_demand_matrix, self.ofmap_demand_matrix
+
+    def get_avg_mapping_efficiency(self):
+        assert self.demand_mat_ready_flag, "Computes not ready yet"
+        return sum(self.mapping_efficiency_per_fold) / len(self.mapping_efficiency_per_fold)
+
+    def get_avg_compute_utilization(self):
+        assert self.demand_mat_ready_flag, "Computes not ready yet"
+        return sum(self.compute_utility_per_fold) / len(self.compute_utility_per_fold)
+
+    def get_ifmap_requests(self):
+        assert self.demand_mat_ready_flag, "Computes not ready yet"
+        return self.ifmap_reads
+
+    def get_filter_requests(self):
+        assert self.demand_mat_ready_flag, "Computes not ready yet"
+        return self.filter_reads
+
+    def get_ofmap_requests(self):
+        assert self.demand_mat_ready_flag, "Computes not ready yet"
+        return self.ofmap_writes

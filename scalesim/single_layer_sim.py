@@ -15,6 +15,7 @@ from scalesim.compute.operand_matrix import operand_matrix as opmat
 from scalesim.compute.systolic_compute_os import systolic_compute_os
 from scalesim.compute.systolic_compute_ws import systolic_compute_ws
 from scalesim.compute.systolic_compute_is import systolic_compute_is
+from scalesim.compute.neutron_compute import neutron_compute
 from scalesim.memory.double_buffered_scratchpad_mem import double_buffered_scratchpad as mem_dbsp
 
 class single_layer_sim:
@@ -128,6 +129,8 @@ class single_layer_sim:
             self.compute_system = systolic_compute_ws()
         elif self.dataflow == 'is':
             self.compute_system = systolic_compute_is()
+        elif self.dataflow == 'neutron':
+            self.compute_system = neutron_compute()
 
         arr_dims = self.config.get_array_dims()
         self.using_ifmap_custom_layout = self.config.using_ifmap_custom_layout
