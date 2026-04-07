@@ -36,7 +36,7 @@ def smallest_multiple_above(base: int, value: int) -> int:
     return value_int + (base_int - rem)
 
 
-class neutron_compute:
+class neutron_model:
     def __init__(self, num_pipelines: int, num_macs: int, num_accums: int):
         """
         num_pipelines: number of pipelines
@@ -81,7 +81,6 @@ class neutron_compute:
         return transposed_result
 
     def _get_empty_usage_dict(self) -> dict:
-        # define counters
         add_dict = {
             f"{m}+{m}": 0 for m in range(16, 16 + int(log2(self.M)))
         }
@@ -113,7 +112,6 @@ class neutron_compute:
     def _matrix_multiply_data_stationary(
         self, a_dims: tuple[int, int], b_dims: tuple[int, int]
     ) -> dict:
-        # calculate dimensions according to hardware constraints (ensures no performance penalty)
         assert a_dims[1] == b_dims[0], "The matrix multiply dimensions do not match"
 
         a_rows = smallest_multiple_above(self.P, a_dims[0])
@@ -121,15 +119,11 @@ class neutron_compute:
         b_rows = smallest_multiple_above(self.M, b_dims[0])
         b_cols = smallest_multiple_above(self.A, b_dims[1])
 
-        # get empty statistics dictionary
         usage_dict = self._get_empty_usage_dict()
 
-        # calculate statistics
         ramp_up_time = 0
         ramp_down_time = 0
 
-        # this is to fill the canvas at the very beginning,
-        # no ramp up for weights as we need 1 per cycle (we have another dedicated bus)
         ramp_up_time += self.P
 
         for a_row_group in range(0, a_rows // self.P):
@@ -152,13 +146,9 @@ class neutron_compute:
 
                 for a_col_group in range(0, a_cols // self.M):
 
-                    # here, we get the data from the canvas
                     usage_dict["tcm_data_read_byte"] += self.M * self.P
 
-                    # instead of loop on accumulators (for a in range(0, effective_A)) we do multiply A
                     if True:
-                        # the reason for max is that in case effective_A is smaller than self.P,
-                        # we still need to wait till the next P pipelines are fetched before we move
                         usage_dict["total_clock_cycles"] += 1 * max(effective_A, effective_P)
                         usage_dict["8x8"] += self.M * self.P * effective_A
 
@@ -169,27 +159,20 @@ class neutron_compute:
                             number_of_additions = int(number_of_additions / 2)
 
                     if a_col_group != 0:
-                        # if it is 0, we don't need to accumulate with the previous value at all
                         usage_dict["accumulate"] += 1 * self.P * effective_A
-                        # if it is 0, we don't need to read the previous accumulator value, it should be 0
                         usage_dict["accum_read_byte"] += 4 * self.P * effective_A
 
                     usage_dict["accum_write_byte"] += 4 * self.P * effective_A
 
-                    # only for the b matrix (weights)
                     usage_dict["tcm_weight_read_byte"] += self.M * effective_A
 
-                # read the accumulator values
                 usage_dict["accum_read_byte"] += 4 * (effective_A * self.P)
                 usage_dict["tcm_result_write_byte"] += effective_A * self.P
 
-        # we assume storing the final accum values after all iterations is done during the last loops
-        # (note that 32-bit values are quantized back to 8)
         ramp_down_time = 0
 
         usage_dict["total_clock_cycles"] += ramp_up_time
 
-        # compute additional statistics
         tcm_data_active_cycles = usage_dict["tcm_data_read_byte"] / self.M
         tcm_weight_active_cycles = usage_dict["tcm_weight_read_byte"] / self.M
         tcm_result_active_cycles = usage_dict["tcm_result_write_byte"] / self.M
@@ -221,24 +204,19 @@ class neutron_compute:
         b_rows = smallest_multiple_above(self.M, b_dims[0])
         b_cols = smallest_multiple_above(self.A, b_dims[1])
 
-        # get empty statistics dictionary
         usage_dict = self._get_empty_usage_dict()
 
         ramp_up_time = 0
         ramp_down_time = 0
 
-        # this is to fill the canvas at the very beginning,
-        # no ramp up for weights as we need 1 per cycle (we have another dedicated bus)
         ramp_up_time += self.P
 
         for b_col_group in range(0, b_cols // self.A):
             for a_row_group in range(0, a_rows // self.P):
                 for a_col_group in range(0, a_cols // self.M):
 
-                    # here, we get the data from the canvas
                     usage_dict["tcm_data_read_byte"] += self.M * self.P
 
-                    # instead of loop on accumulators (for a in range(0, self.A)) we do multiply A
                     if True:
                         usage_dict["total_clock_cycles"] += 1 * self.A
                         usage_dict["8x8"] += self.M * self.P * self.A
@@ -250,27 +228,20 @@ class neutron_compute:
                             number_of_additions = int(number_of_additions / 2)
 
                     if a_col_group != 0:
-                        # if it is 0, we don't need to accumulate with the previous value at all
                         usage_dict["accumulate"] += 1 * self.P * self.A
-                        # if it is 0, we don't need to read the previous accumulator value, it should be 0
                         usage_dict["accum_read_byte"] += 4 * self.P * self.A
 
                     usage_dict["accum_write_byte"] += 4 * self.P * self.A
 
-                    # only for the b matrix (weights)
                     usage_dict["tcm_weight_read_byte"] += self.M * self.A
 
-                # read the accumulator values
                 usage_dict["accum_read_byte"] += 4 * (self.A * self.P)
                 usage_dict["tcm_result_write_byte"] += self.A * self.P
 
-        # we assume storing the final accum values after all iterations is done during the last loops
-        # (note that 32-bit values are quantized back to 8)
         ramp_down_time = 0
 
         usage_dict["total_clock_cycles"] += ramp_up_time
 
-        # compute additional statistics
         tcm_data_active_cycles = usage_dict["tcm_data_read_byte"] / self.M
         tcm_weight_active_cycles = usage_dict["tcm_weight_read_byte"] / self.M
         tcm_result_active_cycles = usage_dict["tcm_result_write_byte"] / self.M
@@ -329,10 +300,9 @@ class neutron_compute:
         self.ofmap_op_mat = ofmap_op_mat
 
         arr_row, arr_col = self.config.get_array_dims()
-        num_accums = arr_row * arr_col
-        self.neutron = neutron_compute(arr_row, arr_col, num_accums)
+        num_accums = self.config.get_neutron_num_accums()
+        self.neutron = neutron_model(arr_row, arr_col, num_accums)
 
-        # Matrix multiply dimensions: (Sr x T) * (T x Sc)
         Sr = int(self.ifmap_op_mat.shape[0])
         T = int(self.ifmap_op_mat.shape[1])
         Sc = int(self.filter_op_mat.shape[1])
@@ -373,6 +343,8 @@ class neutron_compute:
         if total_requests <= 0:
             return np.ones((total_cycles, 1)) * -1
 
+        # This keeps the adapter compatible with Scale-Sim memory interfaces
+        # The demand stream is synthesized from aggregate Neutron counters
         bw = max(1, int(math.ceil(total_requests / total_cycles)))
         demand = np.ones((total_cycles, bw)) * -1
 

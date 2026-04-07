@@ -167,6 +167,8 @@ class scalesim:
             df_string = "Weight Stationary"
         elif df == 'is':
             df_string = "Input Stationary"
+        elif df == 'neutron':
+            df_string = "Neutron"
 
         print("====================================================")
         print("******************* SCALE SIM **********************")

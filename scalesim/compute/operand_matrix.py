@@ -268,8 +268,6 @@ class operand_matrix(object):
 
         row_indices = np.expand_dims(np.arange(self.conv_window_size), axis=1)
         col_indices = np.arange(self.num_filters)
-        print("filter row_indices: ", row_indices)
-        print("filer col_indices: ", col_indices)
 
         self.filter_addr_matrix = self.calc_filter_elem_addr(row_indices, col_indices)
 

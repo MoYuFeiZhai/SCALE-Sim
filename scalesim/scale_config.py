@@ -48,6 +48,8 @@ class scale_config:
         self.filter_sram_bank_port = 2
 
         self.valid_df_list = ['os', 'ws', 'is', 'neutron']
+        self.legacy_df_aliases = {'nt_ds': 'neutron'}
+        self.neutron_num_accums = self.array_rows * self.array_cols
 
         self.sparsity_support = False
         self.sparsity_representation = ""
@@ -108,6 +110,7 @@ class scale_config:
         section = 'architecture_presets'
         self.array_rows = int(config.get(section, 'ArrayHeight'))
         self.array_cols = int(config.get(section, 'ArrayWidth'))
+        self.neutron_num_accums = self.array_rows * self.array_cols
         self.ifmap_sz_kb = int(config.get(section, 'ifmapsramszkB'))
         self.filter_sz_kb = int(config.get(section, 'filtersramszkB'))
         self.ofmap_sz_kb = int(config.get(section, 'ofmapsramszkB'))
@@ -115,6 +118,10 @@ class scale_config:
         self.filter_offset = int(config.get(section, 'FilterOffset'))
         self.ofmap_offset = int(config.get(section, 'OfmapOffset'))
         self.df = config.get(section, 'Dataflow')
+        if self.df in self.legacy_df_aliases:
+            self.df = self.legacy_df_aliases[self.df]
+        if config.has_option(section, 'NeutronNumAccums'):
+            self.neutron_num_accums = int(config.get(section, 'NeutronNumAccums'))
         
         # Make ReadRequestBuffer and WriteRequestBuffer optional
         if config.has_option(section, 'ReadRequestBuffer'):
@@ -229,6 +236,7 @@ class scale_config:
         config.set(section, 'IfmapOffset', str(self.ifmap_offset))
         config.set(section, 'FilterOffset', str(self.filter_offset))
         config.set(section, 'OfmapOffset', str(self.ofmap_offset))
+        config.set(section, 'NeutronNumAccums', str(self.neutron_num_accums))
 
         config.set(section, 'Dataflow', str(self.df))
         config.set(section, 'Bandwidth', ','.join([str(x) for x in self.bandwidths]))
@@ -262,7 +270,7 @@ class scale_config:
         Method to set the dataflow for the matric multiplication with Output Stationary being the
         default dataflow.
         """
-        self.df = dataflow
+        self.df = self.legacy_df_aliases.get(dataflow, dataflow)
 
     #
     def set_buffer_sizes_kb(self, ifmap_size_kb=1, filter_size_kb=1, ofmap_size_kb=1):
@@ -410,6 +418,14 @@ class scale_config:
         """
         if self.valid_conf_flag:
             return self.array_rows, self.array_cols
+
+    #
+    def get_neutron_num_accums(self):
+        """
+        Method to get the total number of Neutron accumulators
+        """
+        if self.valid_conf_flag:
+            return self.neutron_num_accums
 
     #
     def get_mem_sizes(self):
