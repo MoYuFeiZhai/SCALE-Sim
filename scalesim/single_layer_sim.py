@@ -129,7 +129,7 @@ class single_layer_sim:
             self.compute_system = systolic_compute_ws()
         elif self.dataflow == 'is':
             self.compute_system = systolic_compute_is()
-        elif self.dataflow == 'neutron':
+        elif self.dataflow == 'nt_ds':
             self.compute_system = neutron_compute()
 
         arr_dims = self.config.get_array_dims()

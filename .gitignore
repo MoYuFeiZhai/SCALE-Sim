@@ -27,4 +27,15 @@ test*
 configs_test
 benchmark_results
 results/
+
+plot_cycles_stacked.png
+plot_dram_bw.png
+plot_radar_opportunity.png
+plot_util_vs_mapping.png
+renamed_cmp_mapping_os_ws.png
+renamed_cmp_ofmap_bw_os_ws.png
+renamed_cmp_stall_os_ws.png
+renamed_cmp_util_os_ws.png
+renamed_summary_OS_vs_WS.csv
 scale-sim-v2/
+scalesim_layers_summary.csv
