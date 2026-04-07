@@ -36,7 +36,7 @@ def smallest_multiple_above(base: int, value: int) -> int:
     return value_int + (base_int - rem)
 
 
-class Neutron:
+class neutron_compute:
     def __init__(self, num_pipelines: int, num_macs: int, num_accums: int):
         """
         num_pipelines: number of pipelines
@@ -330,7 +330,7 @@ class neutron_compute:
 
         arr_row, arr_col = self.config.get_array_dims()
         num_accums = arr_row * arr_col
-        self.neutron = Neutron(arr_row, arr_col, num_accums)
+        self.neutron = neutron_compute(arr_row, arr_col, num_accums)
 
         # Matrix multiply dimensions: (Sr x T) * (T x Sc)
         Sr = int(self.ifmap_op_mat.shape[0])

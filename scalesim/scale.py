@@ -45,6 +45,8 @@ if __name__ == '__main__':
     GEMM_INPUT = False
     if inp_type == 'gemm':
         GEMM_INPUT = True
+        
+    print("Current input type is GEMM ? ", GEMM_INPUT)
     
     if save_trace == 'Y':
         save_space = False
