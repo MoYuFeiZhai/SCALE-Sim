@@ -278,6 +278,10 @@ class systolic_compute_os:
                 # See the comment on ifmap_prefetch generation
                 this_fold_demand = self.ifmap_op_mat_trans[:,row_start_id: row_end_idx]
                 self.ifmap_reads += this_fold_demand.shape[0] * this_fold_demand.shape[1]
+                if fr == 0 and fc == 0:
+                    print("row start: ", row_start_id)
+                    print("row end: ", row_end_idx)
+                    print("dim of demand_mat: ", this_fold_demand.shape)
 
                 # Take into account under utilization
                 if delta > 0:
@@ -295,6 +299,8 @@ class systolic_compute_os:
 
                 if fr == 0 and fc == 0:
                     self.ifmap_demand_matrix = this_fold_demand
+                    print("dim of skewed_demand_mat: ", this_fold_demand.shape)
+                    print("ifmap_demand_mat example: ", this_fold_demand)
                 else:
                     self.ifmap_demand_matrix = \
                         np.concatenate((self.ifmap_demand_matrix, this_fold_demand), axis=0)
